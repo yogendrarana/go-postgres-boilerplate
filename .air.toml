@@ -1,0 +1,60 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # Command to build your application
+  cmd = "go build -o ./main ./cmd/main.go"
+  bin = "./main"
+  
+  # List of directories to exclude from watching for changes
+  exclude_dir = ["assets", "tmp", "vendor", "testdata"]
+
+  # List of files to exclude from watching for changes
+  exclude_file = []
+
+  # Regular expressions for files to exclude from watching
+  exclude_regex = ["_test.go"]
+
+  # Include extensions to watch for changes
+  include_ext = ["go", "tpl", "tmpl", "html"]
+
+  # Interval to delay between rebuilds in milliseconds
+  delay = 1000
+  
+  # Enable or disable polling for changes
+  poll = false
+  poll_interval = 0
+
+  # Command to run after the build is complete
+  post_cmd = []
+  
+  # Command to run before the build starts
+  pre_cmd = []
+  
+  # Delay to rerun the server after changes
+  rerun_delay = 500
+
+  # Log file for build errors
+  log = "build-errors.log"
+
+  # Whether to stop on error
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  # Enable timestamps in logs
+  time = true
+
+[misc]
+  clean_on_exit = false
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true
