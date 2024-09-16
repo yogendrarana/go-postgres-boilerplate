@@ -10,12 +10,14 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
 
+	"how-to-server/internal/database"
 	"how-to-server/internal/routers"
 )
 
 type Server struct {
 	port   int
 	router *gin.Engine
+	db     database.Service
 }
 
 // NewServer initializes and returns an *http.Server with the Gin router
