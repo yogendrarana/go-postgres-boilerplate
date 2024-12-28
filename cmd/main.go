@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"how-to-server/internal/database"
-	"how-to-server/internal/initializers"
-	"how-to-server/internal/server"
+	"go-gin-postgres/internal/config"
+	"go-gin-postgres/internal/database"
+	"go-gin-postgres/internal/initializers"
+	"go-gin-postgres/internal/server"
 	"log"
-	"net/http"
 )
 
 func init() {
@@ -14,23 +13,18 @@ func init() {
 }
 
 func main() {
-	// Create a new database service
-	dbService := database.New()
-	dbService.GetDB()
-	defer dbService.Close()
-
-	// Create a new server
-	srv := server.NewServer()
-	port := srv.Addr[len(":"):]
-
-	// Start the server
-	fmt.Printf("Server is running on port %s\n", port)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Error starting server: %v", err)
+	// Load configuration
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// Gracefully close the database connection when shutting down
-	if err := dbService.Close(); err != nil {
-		log.Fatalf("Error closing database: %v", err)
+	database.NewDB(cfg)
+	defer database.CloseDB()
+
+	// Create and run server
+	srv := server.NewServer(cfg)
+	if err := srv.Run(); err != nil {
+		log.Fatalf("Error starting server: %v", err)
 	}
 }

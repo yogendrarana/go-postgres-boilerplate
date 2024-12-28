@@ -7,46 +7,38 @@ import (
 	"sync"
 	"time"
 
+	"go-gin-postgres/internal/config"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-type Service interface {
-	Health() map[string]string
-	Close() error
-	GetDB() *gorm.DB
-}
-
-type service struct {
-	db *gorm.DB
-}
-
 var (
-	dbUrl      = os.Getenv("DB_URL")
-	dbInstance *service
-	once       sync.Once
+	db   *gorm.DB
+	once sync.Once
 )
 
-// New creates a new database service.
-func New() Service {
+func NewDB(cfg *config.Config) *gorm.DB {
 	once.Do(func() {
-		if dbUrl == "" {
-			log.Fatal("DB_URL environment variable is not set")
+		logLevel := logger.Info
+		if cfg.Environment == "production" {
+			logLevel = logger.Error
 		}
 
 		newLogger := logger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			logger.Config{
 				SlowThreshold:             time.Second,
-				LogLevel:                  logger.Info,
+				LogLevel:                  logLevel,
 				IgnoreRecordNotFoundError: true,
 				Colorful:                  true,
 			},
 		)
 
-		db, err := gorm.Open(postgres.Open(dbUrl), &gorm.Config{
-			Logger: newLogger,
+		db, err := gorm.Open(postgres.Open(cfg.DBUrl), &gorm.Config{
+			Logger:      newLogger,
+			PrepareStmt: true,
 		})
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
@@ -57,23 +49,45 @@ func New() Service {
 			log.Fatalf("Failed to get database: %v", err)
 		}
 
+		// Configure connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 		sqlDB.SetConnMaxLifetime(time.Hour)
 
-		dbInstance = &service{
-			db: db,
-		}
+		log.Println("Database connection established successfully")
 	})
 
-	return dbInstance
+	return db
+}
+
+// Close closes the database connection.
+func CloseDB() {
+	if db == nil {
+		return
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Printf("Error disconnecting from database: %v", err)
+		return
+	}
+
+	log.Printf("Disconnecting from database")
+	if err := sqlDB.Close(); err != nil {
+		log.Printf("Error closing database connection: %v", err)
+	}
+}
+
+// GetDB returns the underlying *gorm.DB instance
+func GetDB() *gorm.DB {
+	return db
 }
 
 // Health returns the health status of the database.
-func (s *service) Health() map[string]string {
+func DBHealth() map[string]string {
 	stats := make(map[string]string)
 
-	sqlDB, err := s.db.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		stats["status"] = "error"
 		stats["message"] = fmt.Sprintf("Failed to get database: %v", err)
@@ -100,19 +114,4 @@ func (s *service) Health() map[string]string {
 	stats["max_lifetime_closed"] = fmt.Sprintf("%d", dbStats.MaxLifetimeClosed)
 
 	return stats
-}
-
-// Close closes the database connection.
-func (s *service) Close() error {
-	sqlDB, err := s.db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get database: %w", err)
-	}
-	log.Printf("Disconnecting from database")
-	return sqlDB.Close()
-}
-
-// GetDB returns the underlying *gorm.DB instance
-func (s *service) GetDB() *gorm.DB {
-	return s.db
 }
