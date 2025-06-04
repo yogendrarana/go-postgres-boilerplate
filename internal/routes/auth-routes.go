@@ -6,6 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoutes(authGroup *gin.RouterGroup) {
-	authGroup.POST("/auth/register", handlers.RegisterWithEmailPassword)
+func RegisterAuthRoutes(authGroup *gin.RouterGroup) {
+	authGroup.POST("/register", handlers.RegisterWithEmailPassword)
 }

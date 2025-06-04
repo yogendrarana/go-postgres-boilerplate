@@ -29,8 +29,8 @@ func NewRouter() *gin.Engine {
 	// TODO: serve static file
 
 	// register all routes
-	apiV1 := router.Group("/api/v1")
-	routes.RegisterRoutes(apiV1)
+	api := router.Group("/api")
+	RegisterV1Routes(api)
 
 	// home page
 	router.GET("/", func(c *gin.Context) {
@@ -40,4 +40,8 @@ func NewRouter() *gin.Engine {
 	})
 
 	return router
+}
+
+func RegisterV1Routes(router *gin.RouterGroup) {
+	routes.RegisterAuthRoutes(router.Group("/auth"))
 }
