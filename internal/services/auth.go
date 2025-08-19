@@ -1,113 +1,89 @@
 package services
 
 import (
-	"fmt"
-	"os"
+	"errors"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
+	"go-gin-postgres/internal/models"
+	"go-gin-postgres/internal/repository"
+
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
-const (
-	bcryptCost = 10
-)
+var ErrEmailAlreadyRegistered = errors.New("Email already registered.")
 
-// generate access token
-func GenerateAccessToken(userID uuid.UUID) (string, error) {
-	// access token expires in 15 minutes
-	accessExpiry := time.Now().Add(time.Minute * 15).Unix()
-
-	// defining the claims for the access tokens
-	accessClaims := jwt.MapClaims{"exp": accessExpiry, "sub": userID}
-
-	// create the access token
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessSignedToken, err := accessToken.SignedString([]byte(os.Getenv("ACCESS_JWT_SECRET")))
-	if err != nil {
-		return "", err
-	}
-
-	return accessSignedToken, nil
+type RegisterInput struct {
+	FullName        string `json:"full_name" binding:"required,min=3,max=50"`
+	Email           string `json:"email" binding:"required,email"`
+	Password        string `json:"password" binding:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" binding:"required,min=8"`
 }
 
-// check the validity of the access token
-func ValidateAccessToken(accessToken string, ctx *gin.Context) (bool, *uint) {
-	token, err := jwt.Parse(accessToken, func(token *jwt.Token) (interface{}, error) {
-		// not required to check signing method but checking it is a good practice
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+func RegisterWithEmailPassword(db *gorm.DB, input RegisterInput) (models.User, string, string, error) {
+	var emptyUser models.User
+
+	if input.Password != input.ConfirmPassword {
+		return emptyUser, "", "", errors.New("Passwords do not match")
+	}
+
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
+	}()
 
-		return []byte(os.Getenv("ACCESS_JWT_SECRET")), nil
-	})
+	// Check if user already exists
+	if _, err := repository.FindUserByEmail(tx, input.Email); err == nil {
+		tx.Rollback()
+		return emptyUser, "", "", ErrEmailAlreadyRegistered
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return emptyUser, "", "", err
+	}
 
+	// Create user
+	user := models.User{FullName: input.FullName, Email: input.Email}
+	if err := repository.CreateUser(tx, &user); err != nil {
+		tx.Rollback()
+		return emptyUser, "", "", err
+	}
+
+	// Store password
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
 	if err != nil {
-		return false, nil
+		tx.Rollback()
+		return emptyUser, "", "", err
 	}
-	fmt.Println("tokennnnnn", token)
-
-	// Extract the user ID from the token claims
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return false, nil
-	}
-
-	userIDFloat, ok := claims["sub"].(float64)
-	if !ok {
-		return false, nil
+	pwd := models.Password{UserID: user.ID, Hash: string(hash)}
+	if err := repository.CreatePassword(tx, &pwd); err != nil {
+		tx.Rollback()
+		return emptyUser, "", "", err
 	}
 
-	userIDInt := uint(userIDFloat)
-
-	return true, &userIDInt
-}
-
-// generate refresh token
-func GenerateRefreshTokenAndHash() (string, string, error) {
-	refreshToken := uuid.New().String()
-
-	// Hash the refresh token using bcrypt
-	hashedToken, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcryptCost)
+	// Tokens
+	accessToken, err := GenerateAccessToken(user.ID)
 	if err != nil {
-		return "", "", err
+		tx.Rollback()
+		return emptyUser, "", "", err
+	}
+	refreshToken, hashedToken, err := GenerateRefreshTokenAndHash()
+	if err != nil {
+		tx.Rollback()
+		return emptyUser, "", "", err
 	}
 
-	return refreshToken, string(hashedToken), nil
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	dbRefresh := models.RefreshToken{UserID: user.ID, Token: hashedToken, ExpiresAt: expiresAt}
+	if err := repository.CreateRefreshToken(tx, &dbRefresh); err != nil {
+		tx.Rollback()
+		return emptyUser, "", "", err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return emptyUser, "", "", err
+	}
+
+	return user, accessToken, refreshToken, nil
 }
-
-// func ValidateRefreshToken(refreshToken string, refreshTokens []models.RefreshToken) (*models.RefreshToken, error) {
-// 	var matchingToken *models.RefreshToken
-
-// 	// Loop through the array of refresh tokens
-// 	for _, tkn := range refreshTokens {
-// 		// Compare the token in the cookie with the hashed token in the database
-// 		err := bcrypt.CompareHashAndPassword([]byte(tkn.TokenHash), []byte(refreshToken))
-// 		if err != nil {
-// 			fmt.Println("error hai", err)
-// 		}
-
-// 		if err == nil {
-// 			// If the comparison is successful, store the matching refresh token
-// 			matchingToken = &tkn
-// 			break
-// 		}
-// 	}
-
-// 	// Check if a matching token was found
-// 	if matchingToken == nil {
-// 		return nil, errors.New("Refresh token not found or invalid")
-// 	}
-
-// 	// Check the expiration of the matching refresh token
-// 	validityDuration := 7 * 24 * time.Hour
-// 	if time.Now().Sub(matchingToken.CreatedAt) > validityDuration {
-// 		// If the token has expired, return an error or handle it as needed
-// 		return nil, errors.New("Refresh token has expired")
-// 	}
-
-// 	// If everything is valid, return the matching refresh token
-// 	return matchingToken, nil
-// }
