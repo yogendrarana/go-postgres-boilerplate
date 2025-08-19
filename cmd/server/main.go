@@ -1,10 +1,10 @@
 package main
 
 import (
+	"go-gin-postgres/internal/api"
 	"go-gin-postgres/internal/config"
-	"go-gin-postgres/internal/database"
+	db "go-gin-postgres/internal/db"
 	"go-gin-postgres/internal/initializers"
-	"go-gin-postgres/internal/server"
 	"log"
 )
 
@@ -19,11 +19,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	database.NewDB(cfg)
-	defer database.CloseDB()
+	db.NewDB(cfg)
+	defer db.CloseDB()
 
 	// Create and run server
-	srv := server.NewServer(cfg)
+	srv := api.NewServer(cfg)
 	if err := srv.Run(); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}

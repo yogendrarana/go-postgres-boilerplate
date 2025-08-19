@@ -1,4 +1,4 @@
-package router
+package api
 
 import (
 	middlewares "go-gin-postgres/internal/middleware"

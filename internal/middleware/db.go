@@ -1,14 +1,14 @@
 package middlewares
 
 import (
-	"go-gin-postgres/internal/database"
+	db "go-gin-postgres/internal/db"
 
 	"github.com/gin-gonic/gin"
 )
 
 func DBMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		database := database.GetDB()
+		database := db.GetDB()
 		ctx.Set("db", database)
 		ctx.Next()
 	}

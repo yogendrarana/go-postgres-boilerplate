@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"go-gin-postgres/internal/database/models"
+	"go-gin-postgres/internal/models"
 	"go-gin-postgres/internal/services"
 	"net/http"
 

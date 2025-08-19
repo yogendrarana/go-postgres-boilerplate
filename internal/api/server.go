@@ -1,4 +1,4 @@
-package server
+package api
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"go-gin-postgres/internal/config"
-	router "go-gin-postgres/internal/router"
 )
 
 type Server struct {
@@ -20,7 +19,7 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config) *Server {
-	router := router.NewRouter()
+	router := NewRouter()
 
 	server := &Server{
 		httpServer: &http.Server{
