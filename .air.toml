@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 
 [build]
   # Command to build your application
-  cmd = "go build -o ./main ./cmd/server/main.go"
+  cmd = "go build -o ./main ./cmd/api/main.go"
   bin = "./main"
   
   # List of directories to exclude from watching for changes
